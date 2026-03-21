@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Basit Chat Uygulaması</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #chat-page { display: none; }
+        #mesaj-kutusu { height: 300px; border: 1px solid #ccc; overflow-y: scroll; margin-bottom: 10px; padding: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="login-page">
+        <h2>Sohbete Katıl</h2>
+        <input type="text" id="username" placeholder="Kullanıcı Adı">
+        <button onclick="connect()">Bağlan</button>
+    </div>
+
+    <div id="chat-page">
+        <h2>Genel Sohbet</h2>
+        <div id="mesaj-kutusu"></div>
+        <input type="text" id="message" placeholder="Mesaj yaz...">
+        <button onclick="sendMessage()">Gönder</button>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let username = null;
+
+        function connect() {
+            username = document.getElementById('username').value.trim();
+            if(username) {
+                // Java tarafındaki endpoint'e bağlan
+                let socket = new SockJS('http://localhost:8080/ws-chat');
+                stompClient = Stomp.over(socket);
+
+                stompClient.connect({}, function () {
+                    document.getElementById('login-page').style.display = 'none';
+                    document.getElementById('chat-page').style.display = 'block';
+
+                    // Sunucudaki public kanalı dinlemeye başla
+                    stompClient.subscribe('/topic/public', function (payload) {
+                        let message = JSON.parse(payload.body);
+                        let messageArea = document.getElementById('mesaj-kutusu');
+                        messageArea.innerHTML += `<p><b>${message.sender}:</b> ${message.message}</p>`;
+                        messageArea.scrollTop = messageArea.scrollHeight;
+                    });
+                });
+            }
+        }
+
+        function sendMessage() {
+            let messageContent = document.getElementById('message').value.trim();
+            if(messageContent && stompClient) {
+                let chatMessage = {
+                    sender: username,
+					message: messageContent
+                };
+                
+                // Java'daki @MessageMapping("/chat") adresine gönder
+                stompClient.send("/app/chat", {}, JSON.stringify(chatMessage));
+                document.getElementById('message').value = '';
+            }
+        }
+    </script>
+</body>
+</html>
